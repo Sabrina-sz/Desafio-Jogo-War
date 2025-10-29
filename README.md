@@ -18,7 +18,7 @@ O projeto está dividido em  três níveis, nível novato, nível aventureiro, n
 
 ## Nível Novato
 
- Objetivo: Cadastrar territórios.
+### Objetivo: Cadastrar territórios.
 
 - Criar struct Territorio
 
@@ -30,7 +30,7 @@ O projeto está dividido em  três níveis, nível novato, nível aventureiro, n
 
 ## Nível Aventureiro
 
-Objetivo: Simular ataques entre territórios.
+### Objetivo: Simular ataques entre territórios.
 
 - Usar ponteiros e alocação dinâmica (malloc/calloc)
 
@@ -44,7 +44,7 @@ Objetivo: Simular ataques entre territórios.
 
 ## Nível Mestre
 
-Objetivo: Adicionar missões estratégicas.
+### Objetivo: Adicionar missões estratégicas.
 
 - Sortear missão para cada jogador
 
