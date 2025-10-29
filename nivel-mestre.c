@@ -1,395 +1,308 @@
-/*
- * Implementação do Sistema de Missões Estratégicas para Jogo Estilo WAR.
- * * Este código demonstra a modularização, alocação dinâmica de memória,
- * uso de ponteiros e gerenciamento de missões de jogadores em C.
- */
+/* war_missoes.c
+   Implementação das missões estratégicas para cada jogador no estilo "War".
+   Requisitos: modularização, ponteiros, malloc/free, uso de strcpy para atribuir missões.
+*/
 
 #include <stdio.h>
-#include <stdlib.h> // Para malloc, calloc, free, rand, srand
-#include <string.h> // Para strcpy, strcmp
-#include <time.h>   // Para time (usado no srand)
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
-// --- Constantes Globais ---
-#define MAX_NOME_TERRITORIO 30
+#define MAX_NOME 30
 #define MAX_COR 10
-#define MAX_TAMANHO_MISSAO 256
-#define TOTAL_MISSOES_PREDEFINIDAS 5
 
-// --- Estruturas ---
-
-/**
- * @brief Define a estrutura de um território no mapa.
- */
-typedef struct Territorio {
-    char nome[MAX_NOME_TERRITORIO];
-    char cor[MAX_COR]; // Cor do jogador que domina
+typedef struct {
+    char nome[30];
+    char cor[10]; // cor do dono (ex: "Vermelho", "Azul", "Verde", "Amarelo")
     int tropas;
 } Territorio;
 
-
-// --- Vetor Global de Missões (Conforme Requisito) ---
-
-/**
- * @brief Armazena as descrições pré-definidas das missões.
- * Usado pela função atribuirMissao.
- */
-const char* VETOR_MISSOES[TOTAL_MISSOES_PREDEFINIDAS] = {
-    "Eliminar todas as tropas da cor Vermelha",
-    "Conquistar o territorio 'Brasil'",
-    "Possuir 3 territorios",
-    "Possuir 10 tropas no territorio 'Canada'",
-    "Eliminar todas as tropas da cor Azul"
-};
-
-
-// --- Protótipos das Funções (Modularização) ---
-
-// Funções de Missão
-void atribuirMissao(char* destino, const char* missoes[], int totalMissoes);
-int verificarMissao(const char* missao, Territorio* mapa, int tamanhoMapa, const char* corJogador);
-void exibirMissao(const char* missao); // Passagem por valor (do ponteiro)
-
-// Funções do Jogo
-Territorio* inicializarMapa(int* tamanhoMapa);
-void exibirMapa(Territorio* mapa, int tamanhoMapa);
+/* ----------------------- Assinaturas das funções ----------------------- */
+void atribuirMissao(char* destino, char* missoes[], int totalMissoes);
+int verificarMissao(char* missao, Territorio* mapa, int tamanho, const char* corJogador);
+void exibirMissao(const char* missao); // passagem por valor para exibir (const char*)
 void atacar(Territorio* atacante, Territorio* defensor);
+void exibirMapa(Territorio* mapa, int tamanho);
+void liberarMemoria(Territorio* mapa, int tamanho, char** missoesJogadores, int numJogadores);
+int contarTerritoriosDoJogador(Territorio* mapa, int tamanho, const char* corJogador);
+int somarTropasDoJogador(Territorio* mapa, int tamanho, const char* corJogador);
+int existeTerritorioComNome(Territorio* mapa, int tamanho, const char* nome);
 
-// Funções de Gerenciamento
-void liberarMemoria(Territorio* mapa, char* missaoP1, char* missaoP2);
+/* ----------------------- Implementação ----------------------- */
 
-
-// --- Função Principal (main) ---
-
-int main() {
-    // 1. Inicializa o gerador de números aleatórios
-    srand(time(NULL));
-
-    int tamanhoMapa = 0;
-    const char* JOGADOR1_COR = "Verde";
-    const char* JOGADOR2_COR = "Amarelo";
-
-    // 2. Alocação de Memória para o Mapa
-    Territorio* mapa = inicializarMapa(&tamanhoMapa);
-
-    // 3. Alocação de Memória Dinâmica para as Missões (Requisito)
-    // Aloca espaço no heap para armazenar a string da missão de cada jogador.
-    char* missaoJogador1 = (char*)malloc(MAX_TAMANHO_MISSAO * sizeof(char));
-    char* missaoJogador2 = (char*)malloc(MAX_TAMANHO_MISSAO * sizeof(char));
-
-    if (missaoJogador1 == NULL || missaoJogador2 == NULL) {
-        printf("Erro critico: Falha ao alocar memoria para missoes.\n");
-        // Libera o que pode ter sido alocado
-        free(mapa);
-        free(missaoJogador1); // free(NULL) é seguro
-        free(missaoJogador2);
-        return 1;
-    }
-
-    // 4. Sorteio e Atribuição das Missões (Passagem por "Referência")
-    // Passamos o ponteiro 'missaoJogador1' para que a função POSSA ESCREVER
-    // no endereço de memória que ele aponta.
-    atribuirMissao(missaoJogador1, VETOR_MISSOES, TOTAL_MISSOES_PREDEFINIDAS);
-    atribuirMissao(missaoJogador2, VETOR_MISSOES, TOTAL_MISSOES_PREDEFINIDAS);
-
-    // 5. Exibição Condicional (Apenas uma vez no início)
-    printf("--- JOGO INICIADO ---\n");
-    printf("\n[Jogador 1 - %s]\n", JOGADOR1_COR);
-    exibirMissao(missaoJogador1); // Passagem por Valor (do ponteiro)
-
-    printf("\n[Jogador 2 - %s]\n", JOGADOR2_COR);
-    exibirMissao(missaoJogador2);
-
-    // --- Loop Principal do Jogo (Simulação) ---
-    int jogoAtivo = 1;
-    int turno = 1;
-    
-    // Loop de simulação (limitado a 5 turnos para exemplo)
-    while (jogoAtivo && turno <= 5) {
-        printf("\n----------------------------------\n");
-        printf("--- TURNO %d ---\n", turno);
-        printf("----------------------------------\n");
-        exibirMapa(mapa, tamanhoMapa);
-
-        // --- Turno Jogador 1 (Verde) ---
-        printf("\nTurno do Jogador 1 (%s)\n", JOGADOR1_COR);
-        // Simulação de ataque: P1 (Brasil) ataca P2 (Argentina)
-        int idxAtacante = 0; // Brasil
-        int idxDefensor = 1; // Argentina
-
-        // Validação de ataque (Requisito): Só ataca territórios inimigos
-        if (strcmp(mapa[idxAtacante].cor, JOGADOR1_COR) == 0 && 
-            strcmp(mapa[idxDefensor].cor, JOGADOR1_COR) != 0) 
-        {
-            printf("%s (%s) ataca %s (%s)!\n", 
-                mapa[idxAtacante].nome, mapa[idxAtacante].cor,
-                mapa[idxDefensor].nome, mapa[idxDefensor].cor);
-            
-            atacar(&mapa[idxAtacante], &mapa[idxDefensor]);
-        } else {
-            printf("%s nao pode atacar %s.\n", mapa[idxAtacante].nome, mapa[idxDefensor].nome);
-        }
-
-        // Verificação de Vitória (Requisito)
-        if (verificarMissao(missaoJogador1, mapa, tamanhoMapa, JOGADOR1_COR)) {
-            printf("\n!!! JOGADOR 1 (%s) VENCEU O JOGO !!!\n", JOGADOR1_COR);
-            exibirMissao(missaoJogador1);
-            jogoAtivo = 0;
-            continue; // Pula o resto do loop
-        }
-
-
-        // --- Turno Jogador 2 (Amarelo) ---
-        printf("\nTurno do Jogador 2 (%s)\n", JOGADOR2_COR);
-        // Simulação de ataque: P2 (Canada) ataca NPC (Alasca)
-        idxAtacante = 2; // Canada
-        idxDefensor = 3; // Alasca
-
-        // Validação
-        if (strcmp(mapa[idxAtacante].cor, JOGADOR2_COR) == 0 && 
-            strcmp(mapa[idxDefensor].cor, JOGADOR2_COR) != 0) 
-        {
-             printf("%s (%s) ataca %s (%s)!\n", 
-                mapa[idxAtacante].nome, mapa[idxAtacante].cor,
-                mapa[idxDefensor].nome, mapa[idxDefensor].cor);
-            
-            atacar(&mapa[idxAtacante], &mapa[idxDefensor]);
-        } else {
-            printf("%s nao pode atacar %s.\n", mapa[idxAtacante].nome, mapa[idxDefensor].nome);
-        }
-
-        // Verificação de Vitória (Requisito)
-        if (verificarMissao(missaoJogador2, mapa, tamanhoMapa, JOGADOR2_COR)) {
-            printf("\n!!! JOGADOR 2 (%s) VENCEU O JOGO !!!\n", JOGADOR2_COR);
-            exibirMissao(missaoJogador2);
-            jogoAtivo = 0;
-            continue;
-        }
-
-        turno++;
-    }
-
-    if (jogoAtivo) {
-        printf("\n--- FIM DA SIMULACAO (Limite de turnos atingido) ---\n");
-    }
-
-    // 6. Liberação de Memória (Requisito)
-    liberarMemoria(mapa, missaoJogador1, missaoJogador2);
-
-    return 0;
+/* Sorteia uma missão do vetor missoes[] e copia para destino usando strcpy.
+   Supõe-se que 'destino' já foi alocado com espaço suficiente. */
+void atribuirMissao(char* destino, char* missoes[], int totalMissoes) {
+    int idx = rand() % totalMissoes;
+    strcpy(destino, missoes[idx]);
 }
 
+/* Verifica se a missão (string com formato "id|descrição") foi cumprida.
+   Retorna 1 se cumprida, 0 caso contrário.
+   Recebe também a cor do jogador para verificar objetivos relacionados ao jogador. */
+int verificarMissao(char* missao, Territorio* mapa, int tamanho, const char* corJogador) {
+    int id = 0;
+    char descricao[200];
+    // separa id e descrição (ex: "1|Conquistar 3 territorios")
+    char* sep = strchr(missao, '|');
+    if (!sep) return 0;
+    int len_id = sep - missao;
+    char id_str[10] = {0};
+    strncpy(id_str, missao, len_id);
+    id = atoi(id_str);
+    strcpy(descricao, sep + 1);
 
-// --- Implementação das Funções ---
-
-/**
- * @brief Inicializa um mapa de jogo simples com 4 territórios.
- * Aloca memória dinamicamente para o vetor de territórios.
- * * @param tamanhoMapa Ponteiro para a variável que armazenará o tamanho do mapa.
- * @return Ponteiro para o vetor de territórios alocado.
- */
-Territorio* inicializarMapa(int* tamanhoMapa) {
-    *tamanhoMapa = 4;
-    
-    // Usa calloc para inicializar a memória com zeros (boa prática)
-    Territorio* mapa = (Territorio*)calloc(*tamanhoMapa, sizeof(Territorio));
-    if (mapa == NULL) {
-        printf("Erro critico: Falha ao alocar memoria para o mapa.\n");
-        exit(1); // Encerra o programa se não houver memória
+    // Implementação simples para cada id de missão
+    switch (id) {
+        case 1: { // Conquistar 3 territórios (ter >= 3 territórios)
+            int cnt = contarTerritoriosDoJogador(mapa, tamanho, corJogador);
+            if (cnt >= 3) return 1;
+            return 0;
+        }
+        case 2: { // Eliminar todas as tropas da cor Vermelha (exemplo: 'Vermelho')
+            int existe = 0;
+            for (int i = 0; i < tamanho; ++i) {
+                if (strcmp(mapa[i].cor, "Vermelho") == 0 && mapa[i].tropas > 0) {
+                    existe = 1; break;
+                }
+            }
+            return !existe; // true se não existir tropas vermelhas
+        }
+        case 3: { // Controlar todos os territórios (vencer o jogo)
+            int cnt = contarTerritoriosDoJogador(mapa, tamanho, corJogador);
+            return (cnt == tamanho);
+        }
+        case 4: { // Ter ao menos 10 tropas no total
+            int total = somarTropasDoJogador(mapa, tamanho, corJogador);
+            return (total >= 10);
+        }
+        case 5: { // Conquistar o território "Território X" (exemplo)
+            // vamos extrair um nome esperado depois do texto, mas para simplicidade,
+            // assumimos que missão 5 pede um território fixo "Fortaleza"
+            const char* alvo = "Fortaleza";
+            for (int i = 0; i < tamanho; ++i) {
+                if (strcmp(mapa[i].nome, alvo) == 0 && strcmp(mapa[i].cor, corJogador) == 0)
+                    return 1;
+            }
+            return 0;
+        }
+        default:
+            return 0;
     }
-
-    // Território Jogador 1
-    strcpy(mapa[0].nome, "Brasil");
-    strcpy(mapa[0].cor, "Verde");
-    mapa[0].tropas = 5;
-
-    // Território Jogador 2
-    strcpy(mapa[1].nome, "Argentina");
-    strcpy(mapa[1].cor, "Amarelo");
-    mapa[1].tropas = 3;
-
-    // Território Jogador 1 (para missão "Possuir 3 territórios")
-    strcpy(mapa[2].nome, "Canada");
-    strcpy(mapa[2].cor, "Verde");
-    mapa[2].tropas = 8; // Para missão "Possuir 10 tropas"
-
-    // Território Neutro (para missão "Eliminar Vermelha")
-    strcpy(mapa[3].nome, "Alasca");
-    strcpy(mapa[3].cor, "Vermelha");
-    mapa[3].tropas = 2;
-
-    return mapa;
 }
 
-/**
- * @brief Sorteia uma missão do vetor global e a copia para o destino.
- * (Requisito: void atribuirMissao(char* destino, char* missoes[], int totalMissoes))
- * * @param destino Ponteiro para a string de destino (memória já alocada).
- * @param missoes Vetor de strings contendo as missões pré-definidas.
- * @param totalMissoes Tamanho do vetor de missões.
- */
-void atribuirMissao(char* destino, const char* missoes[], int totalMissoes) {
-    int indiceSorteado = rand() % totalMissoes;
-    
-    // Copia a string da missão sorteada para a memória dinâmica do jogador
-    strcpy(destino, missoes[indiceSorteado]);
-}
-
-/**
- * @brief Exibe a missão do jogador.
- * (Requisito: Passagem por valor para exibição)
- * O ponteiro 'missao' é passado por valor. A função recebe uma cópia
- * do endereço, mas não pode alterar para onde o 'missao' original (na main) aponta.
- * Ela pode, no entanto, alterar o *conteúdo* da memória (o que não fazemos aqui).
- * * @param missao A string (char*) contendo a descrição da missão.
- */
+/* Exibe a missão (passagem por valor do ponteiro const char*). */
 void exibirMissao(const char* missao) {
-    printf("Sua missao: %s\n", missao);
+    char* sep = strchr(missao, '|');
+    if (sep) {
+        printf("Sua missão: %s\n", sep + 1);
+    } else {
+        printf("Sua missão: %s\n", missao);
+    }
 }
 
-/**
- * @brief Simula um ataque entre dois territórios.
- * (Requisito: void atacar(Territorio* atacante, Territorio* defensor))
- * * @param atacante Ponteiro para o território atacante.
- * @param defensor Ponteiro para o território defensor.
- */
+/* Simulação do ataque entre territorios.
+   Usa rand() para rolagem (1..6) para atacante e defensor.
+   Se atacante vence (soma maior), transfere cor e metade das tropas ao defensor.
+   Caso perca, atacante perde 1 tropa. */
 void atacar(Territorio* atacante, Territorio* defensor) {
-    // Validação básica de tropas
-    if (atacante->tropas <= 1) {
-        printf("Ataque falhou: %s precisa de mais de 1 tropa para atacar.\n", atacante->nome);
+    if (!atacante || !defensor) return;
+    if (strcmp(atacante->cor, defensor->cor) == 0) {
+        printf("Ataque inválido: mesmo dono.\n");
+        return;
+    }
+    if (atacante->tropas <= 0) {
+        printf("%s não tem tropas suficientes para atacar.\n", atacante->nome);
         return;
     }
 
-    // Simulação de dados (Requisito)
-    int dadoAtacante = (rand() % 6) + 1;
-    int dadoDefensor = (rand() % 6) + 1;
-
-    printf("  > Dados: Atacante (%d) vs Defensor (%d)\n", dadoAtacante, dadoDefensor);
-
-    if (dadoAtacante > dadoDefensor) {
-        // Vitória do Atacante
-        printf("  > VITORIA! %s conquistou %s.\n", atacante->nome, defensor->nome);
-        
-        // Transferência de cor (Requisito)
+    int rollA = (rand() % 6) + 1;
+    int rollD = (rand() % 6) + 1;
+    printf("Rolagem atacante (%s) = %d | defensor (%s) = %d\n", atacante->nome, rollA, defensor->nome, rollD);
+    if (rollA > rollD) {
+        // atacante vence: transfere cor e metade das tropas (arredonda para baixo)
+        int transfer = atacante->tropas / 2;
+        if (transfer == 0) transfer = 1; // garante ao menos 1 tropa transferida
+        printf("Atacante vence! Transferindo %d tropas e mudando cor de %s para %s\n",
+               transfer, defensor->nome, atacante->cor);
         strcpy(defensor->cor, atacante->cor);
-
-        // Transferência de metade das tropas (Requisito)
-        int tropasMovidas = atacante->tropas / 2;
-        if (tropasMovidas == 0) {
-            tropasMovidas = 1; // Garante que mova pelo menos 1 se tiver 2 ou 3 tropas
-        }
-
-        defensor->tropas = tropasMovidas;
-        atacante->tropas -= tropasMovidas;
-
+        defensor->tropas = transfer;
+        atacante->tropas -= transfer;
+        if (atacante->tropas < 0) atacante->tropas = 0;
     } else {
-        // Derrota do Atacante
-        printf("  > DERROTA! %s perdeu 1 tropa.\n", atacante->nome);
-        atacante->tropas--; // Perde uma tropa (Requisito)
+        // atacante perde 1 tropa
+        atacante->tropas -= 1;
+        if (atacante->tropas < 0) atacante->tropas = 0;
+        printf("Defensor resiste! %s perde 1 tropa (agora tem %d).\n", atacante->nome, atacante->tropas);
     }
 }
 
-/**
- * @brief Exibe o estado atual de todos os territórios no mapa.
- * * @param mapa Ponteiro para o início do vetor de territórios.
- * @param tamanhoMapa O número de territórios no vetor.
- */
-void exibirMapa(Territorio* mapa, int tamanhoMapa) {
-    printf("\n--- ESTADO ATUAL DO MAPA ---\n");
-    for (int i = 0; i < tamanhoMapa; i++) {
-        printf("[%d] %-10s \t(Cor: %-8s, Tropas: %d)\n", 
-               i, 
-               mapa[i].nome, 
-               mapa[i].cor, 
-               mapa[i].tropas);
+/* Exibe o mapa com nome, cor e tropas de cada território. */
+void exibirMapa(Territorio* mapa, int tamanho) {
+    printf("\nMapa atual:\n");
+    printf("Idx | Nome                 | Cor       | Tropas\n");
+    printf("----+----------------------+-----------+-------\n");
+    for (int i = 0; i < tamanho; ++i) {
+        printf("%3d | %-20s | %-9s | %5d\n", i, mapa[i].nome, mapa[i].cor, mapa[i].tropas);
+    }
+    printf("\n");
+}
+
+/* Libera a memória das missões dos jogadores (vetor de strings alocadas) e do mapa */
+void liberarMemoria(Territorio* mapa, int tamanho, char** missoesJogadores, int numJogadores) {
+    if (mapa) free(mapa);
+    if (missoesJogadores) {
+        for (int i = 0; i < numJogadores; ++i) {
+            if (missoesJogadores[i]) free(missoesJogadores[i]);
+        }
+        free(missoesJogadores);
     }
 }
 
-/**
- * @brief Verifica se a condição de vitória da missão foi atingida.
- * (Requisito: int verificarMissao(char* missao, Territorio* mapa, int tamanho))
- * * @param missao A string da missão do jogador.
- * @param mapa O vetor de territórios.
- * @param tamanhoMapa O tamanho do mapa.
- * @param corJogador A cor do jogador sendo verificado.
- * @return 1 (true) se a missão foi cumprida, 0 (false) caso contrário.
- */
-int verificarMissao(const char* missao, Territorio* mapa, int tamanhoMapa, const char* corJogador) {
-    
-    // Lógica simples de verificação baseada na string da missão
-    
-    if (strcmp(missao, "Eliminar todas as tropas da cor Vermelha") == 0) {
-        for (int i = 0; i < tamanhoMapa; i++) {
-            if (strcmp(mapa[i].cor, "Vermelha") == 0) {
-                return 0; // Ainda existe território Vermelho
-            }
-        }
-        return 1; // Nenhuma cor "Vermelha" encontrada
+/* Contadores auxiliares */
+int contarTerritoriosDoJogador(Territorio* mapa, int tamanho, const char* corJogador) {
+    int cnt = 0;
+    for (int i = 0; i < tamanho; ++i) {
+        if (strcmp(mapa[i].cor, corJogador) == 0) cnt++;
     }
-    
-    if (strcmp(missao, "Eliminar todas as tropas da cor Azul") == 0) {
-         for (int i = 0; i < tamanhoMapa; i++) {
-            if (strcmp(mapa[i].cor, "Azul") == 0) {
-                return 0; 
-            }
-        }
-        return 1;
+    return cnt;
+}
+int somarTropasDoJogador(Territorio* mapa, int tamanho, const char* corJogador) {
+    int soma = 0;
+    for (int i = 0; i < tamanho; ++i) {
+        if (strcmp(mapa[i].cor, corJogador) == 0) soma += mapa[i].tropas;
     }
-
-    if (strcmp(missao, "Conquistar o territorio 'Brasil'") == 0) {
-        for (int i = 0; i < tamanhoMapa; i++) {
-            if (strcmp(mapa[i].nome, "Brasil") == 0) {
-                // Achou o território, verifica se a cor é do jogador
-                return (strcmp(mapa[i].cor, corJogador) == 0);
-            }
-        }
-        return 0; // Território "Brasil" não encontrado (improvável)
+    return soma;
+}
+int existeTerritorioComNome(Territorio* mapa, int tamanho, const char* nome) {
+    for (int i = 0; i < tamanho; ++i) {
+        if (strcmp(mapa[i].nome, nome) == 0) return 1;
     }
-
-    if (strcmp(missao, "Possuir 3 territorios") == 0) {
-        int contagem = 0;
-        for (int i = 0; i < tamanhoMapa; i++) {
-            if (strcmp(mapa[i].cor, corJogador) == 0) {
-                contagem++;
-            }
-        }
-        return (contagem >= 3);
-    }
-
-    if (strcmp(missao, "Possuir 10 tropas no territorio 'Canada'") == 0) {
-         for (int i = 0; i < tamanhoMapa; i++) {
-            if (strcmp(mapa[i].nome, "Canada") == 0) {
-                // Achou o território, verifica cor E tropas
-                return (strcmp(mapa[i].cor, corJogador) == 0 && mapa[i].tropas >= 10);
-            }
-        }
-        return 0;
-    }
-
-    // Missão desconhecida ou ainda não implementada
     return 0;
 }
 
+/* ----------------------- Função main (demonstração) ----------------------- */
+int main() {
+    srand((unsigned int)time(NULL));
 
-/**
- * @brief Libera toda a memória alocada dinamicamente.
- * (Requisito: void liberarMemoria(...))
- * * @param mapa Ponteiro para o vetor de territórios.
- * @param missaoP1 Ponteiro para a string de missão do Jogador 1.
- * @param missaoP2 Ponteiro para a string de missão do Jogador 2.
- */
-void liberarMemoria(Territorio* mapa, char* missaoP1, char* missaoP2) {
-    printf("\n--- Liberando memoria ---\n");
-    
-    // Libera o vetor de territórios
-    free(mapa);
-    mapa = NULL;
-    
-    // Libera as strings de missão
-    free(missaoP1);
-    missaoP1 = NULL;
-    
-    free(missaoP2);
-    missaoP2 = NULL;
-    
-    printf("Memoria liberada com sucesso.\n");
+    /* Definição de missões (cada string começa com um id e '|' para facilitar verificação) */
+    char* missoesDisponiveis[] = {
+        "1|Conquistar 3 territorios",                       // id 1
+        "2|Eliminar todas as tropas da cor Vermelho",       // id 2 (note: cor usada "Vermelho")
+        "3|Controlar todos os territorios",                 // id 3
+        "4|Ter ao menos 10 tropas no total",                // id 4
+        "5|Conquistar o territorio Fortaleza"               // id 5 (alvo: "Fortaleza")
+    };
+    int totalMissoes = sizeof(missoesDisponiveis) / sizeof(missoesDisponiveis[0]);
+
+    /* Configuração do mapa: cria dinamicamente N territorios */
+    int numTerritorios = 6;
+    Territorio* mapa = (Territorio*) calloc(numTerritorios, sizeof(Territorio));
+    if (!mapa) {
+        perror("malloc mapa");
+        return 1;
+    }
+    /* Inicializa nomes, cores e tropas - exemplo inicial */
+    strcpy(mapa[0].nome, "Fortaleza"); strcpy(mapa[0].cor, "Vermelho"); mapa[0].tropas = 3;
+    strcpy(mapa[1].nome, "Colina");     strcpy(mapa[1].cor, "Azul");     mapa[1].tropas = 2;
+    strcpy(mapa[2].nome, "Planalto");   strcpy(mapa[2].cor, "Vermelho"); mapa[2].tropas = 4;
+    strcpy(mapa[3].nome, "Vale");       strcpy(mapa[3].cor, "Verde");    mapa[3].tropas = 1;
+    strcpy(mapa[4].nome, "Costa");      strcpy(mapa[4].cor, "Azul");     mapa[4].tropas = 3;
+    strcpy(mapa[5].nome, "Pântano");    strcpy(mapa[5].cor, "Amarelo");  mapa[5].tropas = 2;
+
+    /* Jogadores (exemplo com 2 jogadores): suas cores e missões alocadas dinamicamente */
+    int numJogadores = 2;
+    const char* coresJogadores[] = {"Azul", "Verde"}; // cores dos jogadores
+    char** missoesJogadores = (char**) malloc(sizeof(char*) * numJogadores);
+    if (!missoesJogadores) {
+        perror("malloc missoesJogadores");
+        free(mapa);
+        return 1;
+    }
+    for (int i = 0; i < numJogadores; ++i) {
+        missoesJogadores[i] = (char*) malloc(200 * sizeof(char)); // espaço para a string da missão
+        if (!missoesJogadores[i]) {
+            perror("malloc missao jogador");
+            // liberar já alocado
+            for (int j = 0; j < i; ++j) free(missoesJogadores[j]);
+            free(missoesJogadores);
+            free(mapa);
+            return 1;
+        }
+        atribuirMissao(missoesJogadores[i], missoesDisponiveis, totalMissoes);
+    }
+
+    /* Exibe missão apenas uma vez no início para cada jogador (interface intuitiva) */
+    printf("=== Missões atribuídas (exibidas uma vez) ===\n");
+    for (int i = 0; i < numJogadores; ++i) {
+        printf("Jogador %d (cor %s): ", i+1, coresJogadores[i]);
+        exibirMissao(missoesJogadores[i]); // passagem por valor
+    }
+    printf("============================================\n\n");
+
+    /* Loop de turnos simplificado: cada jogador pode atacar até que alguém cumpra a missão.
+       A cada final de turno, verifica-se silenciosamente se a missão foi cumprida. */
+    int vencedor = -1;
+    int turno = 0;
+    char input[100];
+
+    while (1) {
+        int jogadorAtual = turno % numJogadores;
+        printf("=== Turno do Jogador %d (cor %s) ===\n", jogadorAtual + 1, coresJogadores[jogadorAtual]);
+        exibirMapa(mapa, numTerritorios);
+
+        // interação: jogador escolhe atacar (entre índices) ou passar
+        printf("Digite o índice do território atacante (ou -1 para passar / s para sair): ");
+        if (!fgets(input, sizeof(input), stdin)) break;
+        if (input[0] == 's' || input[0] == 'S') break;
+        int idxAtq = atoi(input);
+        if (idxAtq == -1) {
+            printf("Jogador %d passou o turno.\n", jogadorAtual + 1);
+        } else if (idxAtq < 0 || idxAtq >= numTerritorios) {
+            printf("Índice inválido.\n");
+        } else {
+            // verifica se jogador é dono do território atacante
+            if (strcmp(mapa[idxAtq].cor, coresJogadores[jogadorAtual]) != 0) {
+                printf("Você só pode atacar de territórios de sua cor.\n");
+            } else {
+                printf("Digite o índice do território defensor: ");
+                if (!fgets(input, sizeof(input), stdin)) break;
+                int idxDef = atoi(input);
+                if (idxDef < 0 || idxDef >= numTerritorios) {
+                    printf("Índice inválido.\n");
+                } else if (idxDef == idxAtq) {
+                    printf("Não pode atacar o mesmo território.\n");
+                } else {
+                    // valida que defensor é de cor diferente
+                    if (strcmp(mapa[idxDef].cor, mapa[idxAtq].cor) == 0) {
+                        printf("O defensor pertence ao mesmo jogador. Escolha outro alvo.\n");
+                    } else {
+                        atacar(&mapa[idxAtq], &mapa[idxDef]);
+                    }
+                }
+            }
+        }
+
+        // Ao final do turno, verificar silenciosamente se missão foi cumprida
+        for (int j = 0; j < numJogadores; ++j) {
+            if (verificarMissao(missoesJogadores[j], mapa, numTerritorios, coresJogadores[j])) {
+                vencedor = j;
+                break;
+            }
+        }
+        if (vencedor != -1) {
+            printf("\n=== Missão cumprida! ===\n");
+            printf("Jogador %d (cor %s) cumpriu sua missão: ", vencedor + 1, coresJogadores[vencedor]);
+            exibirMissao(missoesJogadores[vencedor]);
+            break;
+        }
+
+        turno++;
+        printf("\n");
+    }
+
+    /* Limpeza e fim */
+    liberarMemoria(mapa, numTerritorios, missoesJogadores, numJogadores);
+    printf("Jogo finalizado. Memória liberada.\n");
+    return 0;
 }
