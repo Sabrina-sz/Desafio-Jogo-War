@@ -1,4 +1,4 @@
-# Projeto WAR Estruturado em C 
+# Jogo WAR Estruturado em C 
 
 ## Sobre o Projeto
 
